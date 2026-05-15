@@ -6,7 +6,7 @@ This is a console-based Employee Management System created in C#. The purpose of
 
 The program allows users to add, view, search, edit, delete, save, and load employee records.
 
-[Software Demo Video](PASTE-YOUR-YOUTUBE-LINK-HERE)
+[Software Demo Video](https://youtu.be/wJfOaJHyjOU)
 
 ## Development Environment
 
