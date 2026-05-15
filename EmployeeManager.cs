@@ -2,216 +2,329 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using EmployeeManagement.Models;
 
-// EmployeeManager controls all employee actions.
+namespace EmployeeManagement.Services;
+
 public class EmployeeManager
 {
-    private List<Employee> employees = new List<Employee>();
-    private string filePath = "employees.txt";
+    // -------------------------------------------------------------------------
+    // Fields & Properties
+    // -------------------------------------------------------------------------
 
-    // Adds a new employee to the list.
+    private readonly List<Employee> _employees = new();
+    private readonly string _filePath;
+
+    public bool HasUnsavedChanges { get; private set; } = false;
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
+
+    public EmployeeManager(string filePath = "employees.txt")
+    {
+        _filePath = filePath;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public CRUD Operations
+    // -------------------------------------------------------------------------
+
     public void AddEmployee()
     {
-        int id = ReadEmployeeId("Enter employee ID: ");
+        Console.WriteLine("\n-- Add New Employee --");
 
-        if (employees.Any(e => e.Id == id))
+        int id = PromptForId("Employee ID: ");
+
+        if (_employees.Any(e => e.Id == id))
         {
-            Console.WriteLine("An employee with this ID already exists.");
+            PrintWarning("An employee with that ID already exists.");
             return;
         }
 
-        Console.Write("Enter employee name: ");
-        string name = ReadText();
+        string name       = PromptForText("Full Name:   ");
+        string department = PromptForText("Department:  ");
+        string position   = PromptForText("Position:    ");
 
-        Console.Write("Enter department: ");
-        string department = ReadText();
+        _employees.Add(new Employee(id, name, department, position));
 
-        Console.Write("Enter position: ");
-        string position = ReadText();
-
-        employees.Add(new Employee(id, name, department, position));
-        Console.WriteLine("Employee added successfully.");
+        HasUnsavedChanges = true;
+        PrintSuccess("Employee added successfully.");
     }
 
-    // Displays all employees currently stored in the program.
     public void ViewEmployees()
     {
-        if (employees.Count == 0)
+        Console.WriteLine("\n-- All Employees --");
+
+        if (_employees.Count == 0)
         {
-            Console.WriteLine("No employees found.");
+            PrintWarning("No employee records found.");
             return;
         }
 
-        Console.WriteLine("\nEmployee Records");
-        Console.WriteLine("----------------");
-
-        foreach (Employee employee in employees)
-        {
-            Console.WriteLine(employee);
-        }
+        PrintDivider();
+        foreach (Employee emp in _employees)
+            Console.WriteLine(emp);
+        PrintDivider();
+        Console.WriteLine($"  Total: {_employees.Count} employee(s)");
     }
 
-    // Searches for an employee by ID.
     public void SearchById()
     {
-        int id = ReadEmployeeId("Enter employee ID to search: ");
-        Employee? employee = employees.FirstOrDefault(e => e.Id == id);
+        Console.WriteLine("\n-- Search by ID --");
 
-        if (employee == null)
-        {
-            Console.WriteLine("Employee not found.");
-        }
+        int id = PromptForId("Employee ID: ");
+        Employee? employee = FindById(id);
+
+        if (employee is null)
+            PrintWarning("No employee found with that ID.");
         else
         {
+            PrintDivider();
             Console.WriteLine(employee);
+            PrintDivider();
         }
     }
 
-    // Searches employees by department.
     public void SearchByDepartment()
     {
-        Console.Write("Enter department name: ");
-        string department = ReadText();
+        Console.WriteLine("\n-- Search by Department --");
 
-        List<Employee> results = employees
+        string department = PromptForText("Department: ");
+
+        List<Employee> results = _employees
             .Where(e => e.Department.Equals(department, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (results.Count == 0)
         {
-            Console.WriteLine("No employees found in that department.");
+            PrintWarning($"No employees found in '{department}'.");
             return;
         }
 
-        foreach (Employee employee in results)
-        {
-            Console.WriteLine(employee);
-        }
+        PrintDivider();
+        foreach (Employee emp in results)
+            Console.WriteLine(emp);
+        PrintDivider();
+        Console.WriteLine($"  Found: {results.Count} employee(s) in '{department}'");
     }
 
-    // Edits an existing employee record.
     public void EditEmployee()
     {
-        int id = ReadEmployeeId("Enter employee ID to edit: ");
-        Employee? employee = employees.FirstOrDefault(e => e.Id == id);
+        Console.WriteLine("\n-- Edit Employee --");
 
-        if (employee == null)
+        int id = PromptForId("Employee ID: ");
+        Employee? employee = FindById(id);
+
+        if (employee is null)
         {
-            Console.WriteLine("Employee not found.");
+            PrintWarning("No employee found with that ID.");
             return;
         }
 
-        Console.Write("Enter new name: ");
-        employee.Name = ReadText();
+        Console.WriteLine($"\n  Editing: {employee}");
+        Console.WriteLine("  (Press Enter to keep current value)\n");
 
-        Console.Write("Enter new department: ");
-        employee.Department = ReadText();
+        string? name = PromptForOptionalText($"New Name       [{employee.Name}]: ");
+        if (!string.IsNullOrWhiteSpace(name))
+            employee.Name = name.Trim();
 
-        Console.Write("Enter new position: ");
-        employee.Position = ReadText();
+        string? department = PromptForOptionalText($"New Department [{employee.Department}]: ");
+        if (!string.IsNullOrWhiteSpace(department))
+            employee.Department = department.Trim();
 
-        Console.WriteLine("Employee updated successfully.");
+        string? position = PromptForOptionalText($"New Position   [{employee.Position}]: ");
+        if (!string.IsNullOrWhiteSpace(position))
+            employee.Position = position.Trim();
+
+        HasUnsavedChanges = true;
+        PrintSuccess("Employee updated successfully.");
     }
 
-    // Deletes an employee record by ID.
     public void DeleteEmployee()
     {
-        int id = ReadEmployeeId("Enter employee ID to delete: ");
-        Employee? employee = employees.FirstOrDefault(e => e.Id == id);
+        Console.WriteLine("\n-- Delete Employee --");
 
-        if (employee == null)
+        int id = PromptForId("Employee ID: ");
+        Employee? employee = FindById(id);
+
+        if (employee is null)
         {
-            Console.WriteLine("Employee not found.");
+            PrintWarning("No employee found with that ID.");
             return;
         }
 
-        employees.Remove(employee);
-        Console.WriteLine("Employee deleted successfully.");
+        Console.WriteLine($"\n  {employee}");
+        Console.Write("\n  Confirm deletion (y/n): ");
+        string? confirm = Console.ReadLine();
+
+        if (confirm?.Trim().ToLower() == "y")
+        {
+            _employees.Remove(employee);
+            HasUnsavedChanges = true;
+            PrintSuccess("Employee deleted successfully.");
+        }
+        else
+        {
+            Console.WriteLine("  Deletion cancelled.");
+        }
     }
 
-    // Saves employee records to a text file.
+    // -------------------------------------------------------------------------
+    // Persistence
+    // -------------------------------------------------------------------------
+
     public void SaveEmployees()
     {
+        Console.WriteLine("\n-- Save Employees --");
+
         try
         {
-            List<string> lines = new List<string>();
+            IEnumerable<string> lines = _employees
+                .Select(e => $"{e.Id}|{Sanitize(e.Name)}|{Sanitize(e.Department)}|{Sanitize(e.Position)}");
 
-            foreach (Employee employee in employees)
-            {
-                lines.Add($"{employee.Id},{employee.Name},{employee.Department},{employee.Position}");
-            }
+            File.WriteAllLines(_filePath, lines);
 
-            File.WriteAllLines(filePath, lines);
-            Console.WriteLine("Employee data saved successfully.");
+            HasUnsavedChanges = false;
+            PrintSuccess($"Saved {_employees.Count} employee(s) to '{_filePath}'.");
         }
-        catch (Exception error)
+        catch (IOException ex)
         {
-            Console.WriteLine($"Error saving data: {error.Message}");
+            PrintError($"Failed to save: {ex.Message}");
         }
     }
 
-    // Loads employee records from a text file.
     public void LoadEmployees()
     {
+        Console.WriteLine("\n-- Load Employees --");
+
+        if (!File.Exists(_filePath))
+        {
+            PrintWarning($"File '{_filePath}' not found.");
+            return;
+        }
+
         try
         {
-            if (!File.Exists(filePath))
-            {
-                Console.WriteLine("No saved employee file found.");
-                return;
-            }
+            string[] lines = File.ReadAllLines(_filePath);
+            int loaded  = 0;
+            int skipped = 0;
 
-            employees.Clear();
-            string[] lines = File.ReadAllLines(filePath);
+            _employees.Clear();
 
             foreach (string line in lines)
             {
-                string[] parts = line.Split(',');
-
-                if (parts.Length == 4 && int.TryParse(parts[0], out int id))
+                if (TryParseLine(line, out Employee? emp) && emp is not null)
                 {
-                    employees.Add(new Employee(id, parts[1], parts[2], parts[3]));
+                    _employees.Add(emp);
+                    loaded++;
+                }
+                else
+                {
+                    skipped++;
                 }
             }
 
-            Console.WriteLine("Employee data loaded successfully.");
+            HasUnsavedChanges = false;
+            PrintSuccess($"Loaded {loaded} employee(s) from '{_filePath}'.");
+
+            if (skipped > 0)
+                PrintWarning($"{skipped} record(s) were skipped due to corrupt data.");
         }
-        catch (Exception error)
+        catch (IOException ex)
         {
-            Console.WriteLine($"Error loading data: {error.Message}");
+            PrintError($"Failed to load: {ex.Message}");
         }
     }
 
-    // Reads and validates employee ID input.
-    private int ReadEmployeeId(string message)
+    // -------------------------------------------------------------------------
+    // Private Helpers — Input
+    // -------------------------------------------------------------------------
+
+    private static int PromptForId(string label)
     {
         while (true)
         {
-            Console.Write(message);
-            string? input = Console.ReadLine();
+            Console.Write($"  {label}");
+            string input = Console.ReadLine()?.Trim() ?? string.Empty;
 
-            if (int.TryParse(input, out int id))
-            {
+            if (int.TryParse(input, out int id) && id > 0)
                 return id;
-            }
 
-            Console.WriteLine("Invalid ID. Please enter a number.");
+            PrintWarning("Invalid ID. Please enter a positive integer.");
         }
     }
 
-    // Reads text input and prevents empty values.
-    private string ReadText()
+    private static string PromptForText(string label)
     {
         while (true)
         {
-            string? input = Console.ReadLine();
+            Console.Write($"  {label}");
+            string input = Console.ReadLine()?.Trim() ?? string.Empty;
 
             if (!string.IsNullOrWhiteSpace(input))
-            {
                 return input;
-            }
 
-            Console.Write("Input cannot be empty. Enter again: ");
+            PrintWarning("This field cannot be empty. Please try again.");
         }
     }
+
+    private static string? PromptForOptionalText(string label)
+    {
+        Console.Write($"  {label}");
+        return Console.ReadLine();
+    }
+
+    // -------------------------------------------------------------------------
+    // Private Helpers — Data
+    // -------------------------------------------------------------------------
+
+    private Employee? FindById(int id) =>
+        _employees.FirstOrDefault(e => e.Id == id);
+
+    private static bool TryParseLine(string line, out Employee? employee)
+    {
+        employee = null;
+        string[] parts = line.Split('|');
+
+        if (parts.Length != 4 || !int.TryParse(parts[0], out int id) || id <= 0)
+            return false;
+
+        if (parts.Any(p => string.IsNullOrWhiteSpace(p)))
+            return false;
+
+        employee = new Employee(id, parts[1], parts[2], parts[3]);
+        return true;
+    }
+
+    private static string Sanitize(string value) =>
+        value.Replace("|", "").Trim();
+
+    // -------------------------------------------------------------------------
+    // Private Helpers — Console Output
+    // -------------------------------------------------------------------------
+
+    private static void PrintSuccess(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"  ✓ {message}");
+        Console.ResetColor();
+    }
+
+    private static void PrintWarning(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"  ⚠ {message}");
+        Console.ResetColor();
+    }
+
+    private static void PrintError(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"  ✗ {message}");
+        Console.ResetColor();
+    }
+
+    private static void PrintDivider() =>
+        Console.WriteLine("  " + new string('-', 60));
 }

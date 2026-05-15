@@ -1,23 +1,20 @@
-// Employee class stores information for one employee.
+namespace EmployeeManagement.Models;
+
 public class Employee
 {
-    public int Id { get; set; }
+    public int Id { get; }
     public string Name { get; set; }
     public string Department { get; set; }
     public string Position { get; set; }
 
-    // Constructor creates a new employee object.
     public Employee(int id, string name, string department, string position)
     {
         Id = id;
-        Name = name;
-        Department = department;
-        Position = position;
+        Name = name.Trim();
+        Department = department.Trim();
+        Position = position.Trim();
     }
 
-    // Converts employee information into readable text.
-    public override string ToString()
-    {
-        return $"ID: {Id} | Name: {Name} | Department: {Department} | Position: {Position}";
-    }
+    public override string ToString() =>
+        $"[ID: {Id,4}] {Name,-20} | Dept: {Department,-15} | Position: {Position}";
 }
